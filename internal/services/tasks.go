@@ -4,20 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log"
-	"net/http"
-	"time"
-
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/manabie-com/togo/internal/storages"
-	sqllite "github.com/manabie-com/togo/internal/storages/sqlite"
+	"github.com/manabie-com/togo/internal/storages/postgres"
+	"log"
+	"net/http"
+	"time"
 )
 
 // ToDoService implement HTTP server
 type ToDoService struct {
 	JWTKey string
-	Store  *sqllite.LiteDB
+	Store  *postgres.Sql
 }
 
 func (s *ToDoService) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
@@ -39,6 +38,7 @@ func (s *ToDoService) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		var ok bool
 		req, ok = s.validToken(req)
 		if !ok {
+			//print("NOT OK")
 			resp.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -120,6 +120,12 @@ func (s *ToDoService) addTask(resp http.ResponseWriter, req *http.Request) {
 	t.CreatedDate = now.Format("2006-01-02")
 
 	resp.Header().Set("Content-Type", "application/json")
+	maxTodo := s.Store.GetMaximumTask(req.Context(), t)
+	count :=s.Store.CountTask(req.Context(), t)
+	if count >= maxTodo  {
+		resp.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	err = s.Store.AddTask(req.Context(), t)
 	if err != nil {
@@ -155,7 +161,8 @@ func (s *ToDoService) createToken(id string) (string, error) {
 }
 
 func (s *ToDoService) validToken(req *http.Request) (*http.Request, bool) {
-	token := req.Header.Get("Authorization")
+	authHeader := req.Header.Get("Authorization")
+	token := authHeader[len("Bearer "):]
 
 	claims := make(jwt.MapClaims)
 	t, err := jwt.ParseWithClaims(token, claims, func(*jwt.Token) (interface{}, error) {

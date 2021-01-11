@@ -1,0 +1,31 @@
+version: '3'
+
+networks:
+  togo:
+
+services:
+  web-service:
+    image: togo
+    build:
+      dockerfile: Dockerfile
+      context: .
+    ports:
+      - "5050:5050"
+    depends_on:
+      - database
+    networks:
+      - togo
+
+  database:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+    ports:
+      - '5432:5432'
+    volumes:
+      - dbdata_postgres:/var/lib/postgresql/data
+    networks:
+      - togo
+volumes:
+  dbdata_postgres:
